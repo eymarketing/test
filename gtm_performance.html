@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GTM Performance Dashboard v3</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Hiragino Sans',sans-serif;background:#1a1a1a;color:#e8e8e8;height:100vh;display:flex;flex-direction:column;overflow:hidden;font-size:13px}
+.topbar{background:#111;border-bottom:1px solid #333;padding:0 16px;display:flex;align-items:center;gap:12px;height:48px;flex-shrink:0}
+.logo{font-size:15px;font-weight:700;color:#fff;margin-right:8px}.logo span{color:#e05a00}
+.tab-group{display:flex;gap:6px}
+.tab{padding:6px 16px;border-radius:20px;font-size:12px;cursor:pointer;border:none;font-weight:500;transition:all .15s}
+.tab.active{background:#e05a00;color:#fff}
+.tab.inactive{background:#2a2a2a;color:#aaa;border:1px solid #444}
+.chip-bar{display:flex;gap:5px;flex:1;flex-wrap:wrap;align-items:center;overflow:hidden;min-width:0}
+.chip{display:inline-flex;align-items:center;gap:4px;border-radius:12px;padding:3px 8px;font-size:11px;white-space:nowrap}
+.chip-l1{background:#1e3a20;color:#5cb85c}.chip-l2{background:#1e2e4a;color:#7ab8f5}
+.chip-l3{background:#2e1e4a;color:#b07af5}.chip-l4{background:#4a2e1e;color:#f5a07a}
+.chip-l5{background:#1e3a38;color:#7af5e8}
+.chip-adhoc{background:#3a2800;color:#f5a050}.chip-always{background:#0a2a20;color:#5dcaa5}
+.chip-x{cursor:pointer;font-size:14px;line-height:1;background:none;border:none;padding:0 0 0 2px;opacity:.7}
+.chip-x:hover{opacity:1}
+.fy-group{display:flex;gap:6px;margin-left:auto;flex-shrink:0}
+.fy-btn{padding:4px 10px;border-radius:4px;font-size:11px;border:1px solid #444;background:#1a1a1a;color:#ccc;cursor:pointer}
+.fy-btn.active{background:#185FA5;color:#fff;border-color:#185FA5}
+.layout{display:flex;flex:1;overflow:hidden}
+.sidebar{width:224px;min-width:224px;background:#161616;border-right:1px solid #2a2a2a;display:flex;flex-direction:column;overflow-y:auto}
+.sidebar::-webkit-scrollbar{width:4px}.sidebar::-webkit-scrollbar-thumb{background:#333;border-radius:2px}
+.sb-header{padding:10px 14px;border-bottom:1px solid #2a2a2a}
+.sb-title{font-size:12px;font-weight:600;color:#ccc;display:flex;justify-content:space-between;align-items:center}
+.sb-sub{font-size:10px;color:#555;margin-top:2px}
+.sb-clear{font-size:10px;color:#7ab8f5;cursor:pointer;background:none;border:none;padding:0}
+.sb-section{border-bottom:1px solid #222}
+.sb-section-hd{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;cursor:pointer;user-select:none}
+.sb-section-hd:hover{background:#1d1d1d}
+.sb-items{padding:0 10px 8px;overflow:hidden}
+.sb-items.collapsed{display:none}
+.sb-lbl{display:flex;align-items:center;gap:5px;font-size:11px;color:#999;font-weight:600}
+.sb-chevron{font-size:10px;color:#555;transition:transform .2s;line-height:1}
+.sb-chevron.open{transform:rotate(0deg)}
+.sb-chevron.closed{transform:rotate(-90deg)}
+.lbadge{font-size:9px;font-weight:700;width:18px;height:14px;border-radius:2px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.l1b{background:#1e3a20;color:#5cb85c}.l2b{background:#1e2e4a;color:#7ab8f5}
+.l3b{background:#2e1e4a;color:#b07af5}.l4b{background:#4a2e1e;color:#f5a07a}
+.l5b{background:#1e3a38;color:#7af5e8}
+.adhocb{background:#3a2800;color:#f5a050}.alwaysb{background:#0a2a20;color:#5dcaa5}
+.sel-badge{font-size:9px;background:#e05a00;color:#fff;border-radius:8px;padding:1px 5px}
+.fi{display:flex;align-items:center;gap:6px;padding:3px 4px;cursor:pointer;border-radius:3px;user-select:none}
+.fi:hover{background:#222}
+.fi input{width:13px;height:13px;cursor:pointer;accent-color:#e05a00;flex-shrink:0}
+.fi-name{flex:1;font-size:12px;color:#bbb}.fi-name.on{color:#e05a00}
+.fi-val{font-size:10px;color:#555}
+.fi-tag{font-size:9px;padding:1px 4px;border-radius:2px;margin-left:2px}
+.fi-tag-adhoc{background:#3a2800;color:#f5a050}
+.fi-tag-always{background:#0a2a20;color:#5dcaa5}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.result-bar{padding:8px 16px;border-bottom:1px solid #2a2a2a;display:flex;align-items:center;gap:8px;flex-shrink:0;background:#161616}
+.result-text{font-size:11px;color:#777}
+.result-badge{background:#1e2e4a;color:#7ab8f5;border-radius:4px;padding:2px 8px;font-size:11px}
+.content{flex:1;overflow-y:auto;padding:12px}
+.content::-webkit-scrollbar{width:4px}.content::-webkit-scrollbar-thumb{background:#333;border-radius:2px}
+/* KPI */
+.kpi-row{display:grid;grid-template-columns:repeat(6,1fr);gap:7px;margin-bottom:10px}
+.kpi{background:#1e1e1e;border:1px solid #2a2a2a;border-radius:6px;padding:10px 12px;position:relative;overflow:hidden}
+.kpi.gp{border-color:#2a3a20}
+.kpi-lbl{font-size:9px;color:#555;letter-spacing:.07em;text-transform:uppercase;margin-bottom:3px}
+.kpi-val{font-size:19px;font-weight:600;line-height:1.15}
+.kpi-sub{font-size:10px;color:#555;margin-top:3px}
+.kb{display:inline-flex;align-items:center;font-size:9px;padding:2px 5px;border-radius:2px;font-weight:600}
+.kup{background:#1a3220;color:#5cb85c}.kdn{background:#3a1a1a;color:#e05a00}
+.kline{position:absolute;bottom:0;left:0;right:0;height:2px}
+.klg{background:#2d6e4e}.klr{background:#7B2D2D}.klb{background:#185FA5}.klgp{background:#5cb85c}
+/* cost breakdown bar */
+.cost-breakdown{margin-bottom:10px}
+.cb-bar{display:flex;height:8px;border-radius:4px;overflow:hidden;margin:4px 0}
+.cb-seg-campaign{background:#185FA5}
+.cb-seg-adhoc{background:#f5a050}
+.cb-seg-always{background:#5dcaa5}
+.cb-legend{display:flex;gap:12px;font-size:10px;color:#777}
+.cb-dot{width:8px;height:8px;border-radius:2px;display:inline-block;margin-right:3px}
+/* grid */
+.mid-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.bot-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.card{background:#1e1e1e;border:1px solid #2a2a2a;border-radius:6px;padding:12px 14px}
+.card-hd{font-size:11px;font-weight:600;color:#ccc;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+.card-hd-sub{font-size:10px;color:#555;font-weight:400}
+table{width:100%;border-collapse:collapse;font-size:11px}
+th{text-align:right;color:#555;font-weight:500;font-size:9px;padding:4px 6px;border-bottom:1px solid #282828;letter-spacing:.04em;text-transform:uppercase}
+th:first-child{text-align:left}
+td{padding:5px 6px;text-align:right;color:#bbb;border-bottom:1px solid #1d1d1d}
+td:first-child{text-align:left;color:#ddd}
+tr.total-row td{font-weight:600;color:#e8e8e8;border-top:1px solid #333;border-bottom:none}
+tr.adhoc-row td:first-child{color:#f5a050}
+tr.always-row td:first-child{color:#5dcaa5}
+.roib{display:inline-block;background:#2a1a05;color:#f5a050;border-radius:2px;padding:1px 4px;font-size:10px;font-weight:600}
+.gpb{display:inline-block;background:#1a3220;color:#5cb85c;border-radius:2px;padding:1px 4px;font-size:10px;font-weight:600}
+/* funnel */
+.funnel-wrap{display:flex;flex-direction:column;gap:8px}
+.funnel-bars{display:flex;align-items:flex-end;gap:6px;height:100px}
+.fb-wrap{display:flex;flex-direction:column;align-items:center;gap:3px;flex:1}
+.fb{border-radius:2px 2px 0 0;width:100%}
+.fn{font-size:13px;font-weight:600;color:#e8e8e8}
+.fl{font-size:9px;color:#555}.fp{font-size:9px;color:#444}
+.conv-row{display:flex;justify-content:space-around;padding:8px 0 0;border-top:1px solid #252525}
+.conv-item{text-align:center}
+.cv{font-size:16px;font-weight:600;color:#7ab8f5}.cv.org{color:#f5a050}
+.cvl{font-size:9px;color:#555}
+.chart-legend{display:flex;gap:14px;margin-bottom:8px;flex-wrap:wrap}
+.cleg{display:flex;align-items:center;gap:4px;font-size:10px;color:#777}
+.cleg-sq{width:10px;height:10px;border-radius:1px;flex-shrink:0}
+/* compare */
+.cmp-table{width:100%;border-collapse:collapse;font-size:11px}
+.cmp-table th{padding:7px 10px;text-align:right;color:#555;font-size:9px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;border-bottom:1px solid #282828}
+.cmp-table th:first-child{text-align:left;width:100px}
+.cmp-table td{padding:7px 10px;text-align:right;color:#bbb;border-bottom:1px solid #1d1d1d}
+.cmp-table td:first-child{text-align:left;color:#666;font-size:9px;letter-spacing:.06em;text-transform:uppercase}
+.cmp-best{color:#f5a050;font-weight:700}
+.cmp-col-name{font-size:10px;font-weight:700;color:#e8e8e8;letter-spacing:.04em;text-transform:uppercase}
+/* info tooltip */
+.info-note{font-size:10px;color:#555;font-style:italic;margin-top:4px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">GTM <span>Performance</span></div>
+  <div class="tab-group">
+    <button class="tab active" id="tabDrill" onclick="setMode('drill')">● 絞り込み分析</button>
+    <button class="tab inactive" id="tabComp" onclick="setMode('compare')">比較分析</button>
+  </div>
+  <div class="chip-bar" id="chipBar"></div>
+  <div class="fy-group">
+    <button class="fy-btn active">FY2025</button>
+    <button class="fy-btn">全期間</button>
+  </div>
+  <span style="width:1px;height:24px;background:#444;flex-shrink:0;margin-left:12px"></span>
+  <img src="data:image/png;base64,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" alt="Siechi" style="height:38px;flex-shrink:0;margin-left:12px;align-self:center">
+</div>
+
+<div class="layout">
+  <div class="sidebar">
+    <div class="sb-header">
+      <div class="sb-title">分析軸フィルター <button class="sb-clear" onclick="clearAll()">全解除</button></div>
+      <div class="sb-sub">複数選択で絞り込み・比較</div>
+    </div>
+    <div id="sidebarContent"></div>
+  </div>
+  <div class="main">
+    <div class="result-bar">
+      <span class="result-text">絞り込み結果</span>
+      <span class="result-badge" id="resultBadge">0件選択</span>
+    </div>
+    <div class="content" id="mainContent">
+      <div style="padding:48px;text-align:center;color:#444">左のフィルターを選択してください</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== DATA =====
+// L2に原価率(gp_rate)を追加 ← PMMが入力する想定（ダミー値）
+const DATA = {
+  L1:[
+    {id:'mfg',name:'Manufacturing GTM',revenue:88,pipeline:320,cost:19,roi:4.8,mql:142,sql:38,cpl:130,leads:340},
+    {id:'fin',name:'Financial Services GTM',revenue:54,pipeline:195,cost:12,roi:4.5,mql:98,sql:26,cpl:122,leads:240},
+    {id:'hc', name:'Healthcare GTM',revenue:27,pipeline:98,cost:9.2,roi:2.9,mql:52,sql:14,cpl:177,leads:130},
+  ],
+  L2:[
+    // gp_rate = 粗利率（ダミー値 - PMMが実際に算出する）
+    {id:'dai',name:'Data & AI',revenue:52,pipeline:185,cost:11,roi:4.7,mql:88,sql:24,cpl:125,leads:195,p:'mfg',gp_rate:0.62},
+    {id:'hyb',name:'Hybrid Cloud',revenue:28,pipeline:105,cost:6,roi:4.7,mql:42,sql:11,cpl:143,leads:112,p:'mfg',gp_rate:0.55},
+    {id:'bof',name:'バックオフィスDX',revenue:8,pipeline:30,cost:1.5,roi:5.3,mql:12,sql:3,cpl:125,leads:33,p:'mfg',gp_rate:0.48},
+    {id:'rac',name:'Risk & Compliance',revenue:32,pipeline:115,cost:8,roi:4.0,mql:55,sql:15,cpl:145,leads:133,p:'fin',gp_rate:0.58},
+    {id:'cob',name:'Core Banking DX',revenue:22,pipeline:80,cost:4,roi:5.5,mql:43,sql:11,cpl:93,leads:107,p:'fin',gp_rate:0.52},
+    {id:'cai',name:'Clinical AI',revenue:17,pipeline:62,cost:5.5,roi:3.1,mql:30,sql:8,cpl:183,leads:75,p:'hc',gp_rate:0.45},
+    {id:'mdm',name:'Medical Data Mgmt',revenue:10,pipeline:36,cost:3.7,roi:2.7,mql:22,sql:6,cpl:168,leads:55,p:'hc',gp_rate:0.42},
+  ],
+  L3:[
+    {id:'aiku',name:'AI活用',revenue:25,pipeline:90,cost:5.5,roi:4.5,mql:52,sql:15,cpl:106,leads:120,p:'dai'},
+    {id:'ddkei',name:'データドリブン経営',revenue:17,pipeline:60,cost:3.8,roi:4.5,mql:24,sql:7,cpl:158,leads:55,p:'dai'},
+    {id:'aigov',name:'AIガバナンス',revenue:10,pipeline:35,cost:1.7,roi:5.9,mql:12,sql:4,cpl:142,leads:30,p:'dai'},
+    {id:'devmw',name:'脱VMware',revenue:18,pipeline:65,cost:3.8,roi:4.7,mql:26,sql:7,cpl:146,leads:65,p:'hyb'},
+    {id:'mcopt',name:'マルチクラウド最適化',revenue:10,pipeline:40,cost:2.2,roi:4.5,mql:16,sql:4,cpl:138,leads:47,p:'hyb'},
+    {id:'gyomu',name:'業務効率化',revenue:8,pipeline:30,cost:1.5,roi:5.3,mql:12,sql:3,cpl:125,leads:33,p:'bof'},
+    {id:'finreg',name:'金融規制対応DX',revenue:19,pipeline:68,cost:4.5,roi:4.2,mql:33,sql:9,cpl:136,leads:80,p:'rac'},
+    {id:'riskmgr',name:'リスク管理高度化',revenue:13,pipeline:47,cost:3.5,roi:3.7,mql:22,sql:6,cpl:159,leads:53,p:'rac'},
+    {id:'cliain',name:'臨床AI導入',revenue:10,pipeline:37,cost:3.2,roi:3.1,mql:18,sql:5,cpl:178,leads:45,p:'cai'},
+    {id:'cbanka',name:'次世代コアバンキング',revenue:12,pipeline:43,cost:2.1,roi:5.7,mql:25,sql:7,cpl:84,leads:62,p:'cob'},
+  ],
+  L4:[
+    {id:'event',name:'イベント',revenue:45,pipeline:162,cost:10,roi:4.5,mql:85,sql:23,cpl:118,leads:210,p:'aiku'},
+    {id:'digital',name:'デジタル広告',revenue:38,pipeline:137,cost:8.5,roi:4.5,mql:70,sql:19,cpl:121,leads:170,p:'ddkei'},
+    {id:'web',name:'Web',revenue:22,pipeline:79,cost:4.2,roi:5.2,mql:42,sql:12,cpl:100,leads:98,p:'aigov'},
+    {id:'pr',name:'PR',revenue:12,pipeline:43,cost:2.5,roi:4.8,mql:24,sql:7,cpl:104,leads:55,p:'devmw'},
+    {id:'bdr',name:'BDR / SDR',revenue:30,pipeline:108,cost:6.5,roi:4.6,mql:55,sql:16,cpl:118,leads:130,p:'mcopt'},
+    {id:'partner',name:'Partner',revenue:18,pipeline:65,cost:3.8,roi:4.7,mql:32,sql:9,cpl:119,leads:76,p:'gyomu'},
+    {id:'ee',name:'Executive Engagement',revenue:15,pipeline:54,cost:3.2,roi:4.7,mql:22,sql:7,cpl:145,leads:48,p:'finreg'},
+  ],
+  L5:[
+    {id:'tenj',name:'展示会',revenue:18,pipeline:65,cost:4.2,roi:4.3,mql:35,sql:10,cpl:120,leads:85,p:'event'},
+    {id:'webinar',name:'Webinar',revenue:15,pipeline:54,cost:3.5,roi:4.3,mql:28,sql:8,cpl:125,leads:70,p:'event'},
+    {id:'gsem',name:'Google SEM',revenue:16,pipeline:58,cost:3.8,roi:4.2,mql:30,sql:8,cpl:127,leads:72,p:'digital'},
+    {id:'display',name:'ディスプレイ広告',revenue:12,pipeline:43,cost:2.8,roi:4.3,mql:22,sql:6,cpl:127,leads:55,p:'digital'},
+    {id:'linkedin',name:'LinkedIn広告',revenue:10,pipeline:36,cost:1.9,roi:5.3,mql:18,sql:5,cpl:106,leads:43,p:'digital'},
+    {id:'lp',name:'LP / SEO',revenue:12,pipeline:43,cost:2.2,roi:5.5,mql:25,sql:7,cpl:88,leads:55,p:'web'},
+    {id:'jirei',name:'事例リリース',revenue:10,pipeline:36,cost:2.0,roi:5.0,mql:17,sql:5,cpl:118,leads:43,p:'pr'},
+    {id:'outbound',name:'アウトバウンド',revenue:16,pipeline:58,cost:3.5,roi:4.6,mql:30,sql:9,cpl:117,leads:72,p:'bdr'},
+    {id:'ebc',name:'EBC',revenue:8,pipeline:29,cost:1.8,roi:4.4,mql:14,sql:4,cpl:129,leads:32,p:'partner'},
+    {id:'ert',name:'Executive Roundtable',revenue:8,pipeline:29,cost:1.7,roi:4.7,mql:12,sql:4,cpl:142,leads:26,p:'ee'},
+    {id:'cxob',name:'CXO Briefing',revenue:7,pipeline:25,cost:1.5,roi:4.7,mql:10,sql:3,cpl:150,leads:22,p:'ee'},
+  ],
+  // ===== Ad-hoc: Campaign外の依頼（事業責任者承認済） =====
+  ADHOC:[
+    {id:'ah1',name:'製品単体展示（IBM Think）',revenue:5.5,pipeline:20,cost:2.2,roi:2.5,mql:28,sql:9,cpl:79,leads:65,reason:'事業部要請'},
+    {id:'ah2',name:'特定顧客向け緊急対応',revenue:3.2,pipeline:12,cost:1.8,roi:1.8,mql:10,sql:4,cpl:180,leads:22,reason:'営業エスカレ'},
+    {id:'ah3',name:'競合対抗スポット施策',revenue:2.8,pipeline:10,cost:1.5,roi:1.9,mql:8,sql:3,cpl:188,leads:18,reason:'市場対応'},
+  ],
+  // ===== Always-on: GTM配下の常設アセット（固定費） =====
+  ALWAYS:[
+    {id:'ao1',name:'製品Webサイト維持・更新',revenue:0,pipeline:0,cost:3.5,roi:0,mql:0,sql:0,cpl:0,leads:0,note:'固定費'},
+    {id:'ao2',name:'導入事例ページ制作・運用',revenue:0,pipeline:0,cost:2.8,roi:0,mql:0,sql:0,cpl:0,leads:0,note:'固定費'},
+    {id:'ao3',name:'SEO基盤・コンテンツ運用',revenue:0,pipeline:0,cost:2.2,roi:0,mql:0,sql:0,cpl:0,leads:0,note:'固定費'},
+    {id:'ao4',name:'ブランドアセット管理',revenue:0,pipeline:0,cost:1.5,roi:0,mql:0,sql:0,cpl:0,leads:0,note:'固定費'},
+  ],
+};
+
+const LEVELS=['L1','L2','L3','L4','L5'];
+const LNAMES={L1:'Program',L2:'Offering',L3:'Campaign',L4:'Channel',L5:'Activity'};
+const LBADGE={L1:'l1b',L2:'l2b',L3:'l3b',L4:'l4b',L5:'l5b'};
+const CHIPCLASS={L1:'chip chip-l1',L2:'chip chip-l2',L3:'chip chip-l3',L4:'chip chip-l4',L5:'chip chip-l5'};
+
+let selected={L1:new Set(),L2:new Set(),L3:new Set(),L4:new Set(),L5:new Set(),ADHOC:new Set(),ALWAYS:new Set()};
+let collapsed={L1:false,L2:false,L3:false,L4:false,L5:false,ADHOC:false,ALWAYS:false};
+let mode='drill';
+let charts={};
+
+const fmtM=v=>v===undefined||v===0?'-':(v>=1?'¥'+Math.round(v)+'M':'¥'+Math.round(v*10)/10+'M');
+const fmtK=v=>v===0?'-':'¥'+Math.round(v)+'K';
+const fmtX=v=>v===0?'-':v.toFixed(1)+'x';
+const fmtPct=v=>Math.round(v*100)+'%';
+
+function setMode(m){
+  mode=m;
+  document.getElementById('tabDrill').className='tab '+(m==='drill'?'active':'inactive');
+  document.getElementById('tabComp').className='tab '+(m==='compare'?'active':'inactive');
+  render();
+}
+function clearAll(){
+  [...LEVELS,'ADHOC','ALWAYS'].forEach(l=>selected[l].clear());
+  render();
+}
+function toggle(level,id){
+  if(selected[level].has(id))selected[level].delete(id);
+  else selected[level].add(id);
+  render();
+}
+function toggleCollapse(level){
+  collapsed[level]=!collapsed[level];
+  renderSidebar();
+}
+
+function getAll(){
+  let all=[];
+  LEVELS.forEach(l=>selected[l].forEach(id=>{
+    const item=DATA[l].find(x=>x.id===id);
+    if(item)all.push({level:l,item,type:'campaign'});
+  }));
+  selected.ADHOC.forEach(id=>{
+    const item=DATA.ADHOC.find(x=>x.id===id);
+    if(item)all.push({level:'ADHOC',item,type:'adhoc'});
+  });
+  selected.ALWAYS.forEach(id=>{
+    const item=DATA.ALWAYS.find(x=>x.id===id);
+    if(item)all.push({level:'ALWAYS',item,type:'always'});
+  });
+  return all;
+}
+
+// L2の粗利率を取得（上位から辿る）
+function getGpRate(item,level){
+  if(level==='L2') return item.gp_rate||0.5;
+  if(level==='L1'){
+    const children=DATA.L2.filter(x=>x.p===item.id);
+    if(!children.length) return 0.5;
+    const wavg=children.reduce((s,c)=>s+c.revenue*(c.gp_rate||0.5),0)/children.reduce((s,c)=>s+c.revenue,0);
+    return wavg;
+  }
+  // L3以下：親L2を辿る
+  const findParentGp=(id,lv)=>{
+    const lvIdx=LEVELS.indexOf(lv);
+    if(lvIdx<=1) return DATA.L2.find(x=>x.id===id)?.gp_rate||0.5;
+    const parentLv=LEVELS[lvIdx-1];
+    const cur=DATA[lv].find(x=>x.id===id);
+    if(!cur) return 0.5;
+    return findParentGp(cur.p,parentLv);
+  };
+  return findParentGp(item.id,level);
+}
+
+function sum(items){
+  if(!items.length)return null;
+  const t={revenue:0,pipeline:0,cost:0,mql:0,sql:0,leads:0,gp:0,
+    costCampaign:0,costAdhoc:0,costAlways:0};
+  items.forEach(({level,item,type})=>{
+    t.revenue+=item.revenue; t.pipeline+=item.pipeline; t.cost+=item.cost;
+    t.mql+=item.mql; t.sql+=item.sql; t.leads+=item.leads;
+    const gpr=type==='campaign'?getGpRate(item,level):0;
+    t.gp+=item.revenue*gpr;
+    if(type==='campaign') t.costCampaign+=item.cost;
+    else if(type==='adhoc') t.costAdhoc+=item.cost;
+    else t.costAlways+=item.cost;
+  });
+  t.roi=t.cost>0?t.revenue/t.cost:0;
+  t.gp_roi=t.cost>0?t.gp/t.cost:0;
+  t.cpl=t.leads>0?t.cost*1000/t.leads:0;
+  return t;
+}
+
+function render(){renderChips();renderSidebar();renderMain();}
+
+function renderChips(){
+  const all=getAll();
+  document.getElementById('chipBar').innerHTML=all.map(({level,item,type})=>{
+    const cls=type==='adhoc'?'chip chip-adhoc':type==='always'?'chip chip-always':CHIPCLASS[level]||'chip';
+    const badge=type==='adhoc'?'<span class="lbadge adhocb">AH</span>':
+                type==='always'?'<span class="lbadge alwaysb">AO</span>':
+                `<span class="lbadge ${(level==='L1'?'l1b':level==='L2'?'l2b':level==='L3'?'l3b':level==='L4'?'l4b':'l5b')}">${level}</span>`;
+    return `<span class="${cls}">${badge}${item.name}<button class="chip-x" onclick="toggle('${level}','${item.id}')">×</button></span>`;
+  }).join('');
+}
+
+function renderSidebar(){
+  let html='';
+  // 通常階層
+  LEVELS.forEach(level=>{
+    const items=DATA[level];
+    const cnt=selected[level].size;
+    const isOpen=!collapsed[level];
+    html+=`<div class="sb-section">
+      <div class="sb-section-hd" onclick="toggleCollapse('${level}')">
+        <span class="sb-lbl"><span class="lbadge ${level==='L1'?'l1b':level==='L2'?'l2b':level==='L3'?'l3b':level==='L4'?'l4b':'l5b'}">${level}</span>${LNAMES[level]}${cnt?` <span class="sel-badge">${cnt}選択</span>`:''}</span>
+        <span class="sb-chevron ${isOpen?'open':'closed'}">▼</span>
+      </div>
+      <div class="sb-items${isOpen?'':' collapsed'}">`;
+    items.forEach(d=>{
+      const on=selected[level].has(d.id);
+      const gpTag=level==='L2'&&d.gp_rate?`<span class="fi-tag fi-tag-always">GP ${fmtPct(d.gp_rate)}</span>`:'';
+      html+=`<div class="fi" onclick="toggle('${level}','${d.id}')">
+        <input type="checkbox" ${on?'checked':''} onclick="event.stopPropagation();toggle('${level}','${d.id}')">
+        <span class="fi-name${on?' on':''}">${d.name}${gpTag}</span>
+        <span class="fi-val">${fmtM(d.revenue)}</span>
+      </div>`;
+    });
+    html+='</div></div>';
+  });
+  // Ad-hoc セクション
+  const ahOpen=!collapsed.ADHOC;
+  const ahCnt=selected.ADHOC.size;
+  html+=`<div class="sb-section">
+    <div class="sb-section-hd" onclick="toggleCollapse('ADHOC')">
+      <span class="sb-lbl"><span class="lbadge adhocb">AH</span>Ad-hoc${ahCnt?` <span class="sel-badge">${ahCnt}選択</span>`:''}</span>
+      <span class="sb-chevron ${ahOpen?'open':'closed'}">▼</span>
+    </div>
+    <div class="sb-items${ahOpen?'':' collapsed'}">
+      <div style="font-size:10px;color:#664400;padding:2px 4px 6px;line-height:1.4">Campaign外・事業責任者承認済</div>`;
+  DATA.ADHOC.forEach(d=>{
+    const on=selected.ADHOC.has(d.id);
+    html+=`<div class="fi" onclick="toggle('ADHOC','${d.id}')">
+      <input type="checkbox" ${on?'checked':''} onclick="event.stopPropagation();toggle('ADHOC','${d.id}')">
+      <span class="fi-name${on?' on':''}">${d.name}</span>
+      <span class="fi-val">${fmtM(d.cost)}</span>
+    </div>`;
+  });
+  html+='</div></div>';
+  // Always-on セクション
+  const aoOpen=!collapsed.ALWAYS;
+  const aoCnt=selected.ALWAYS.size;
+  html+=`<div class="sb-section">
+    <div class="sb-section-hd" onclick="toggleCollapse('ALWAYS')">
+      <span class="sb-lbl"><span class="lbadge alwaysb">AO</span>Always-on${aoCnt?` <span class="sel-badge">${aoCnt}選択</span>`:''}</span>
+      <span class="sb-chevron ${aoOpen?'open':'closed'}">▼</span>
+    </div>
+    <div class="sb-items${aoOpen?'':' collapsed'}">
+      <div style="font-size:10px;color:#0a4430;padding:2px 4px 6px;line-height:1.4">GTM配下の常設アセット（固定費）</div>`;
+  DATA.ALWAYS.forEach(d=>{
+    const on=selected.ALWAYS.has(d.id);
+    html+=`<div class="fi" onclick="toggle('ALWAYS','${d.id}')">
+      <input type="checkbox" ${on?'checked':''} onclick="event.stopPropagation();toggle('ALWAYS','${d.id}')">
+      <span class="fi-name${on?' on':''}">${d.name}</span>
+      <span class="fi-val fi-tag-always">${fmtM(d.cost)}</span>
+    </div>`;
+  });
+  html+='</div></div>';
+  document.getElementById('sidebarContent').innerHTML=html;
+}
+
+function renderMain(){
+  const all=getAll();
+  const badge=document.getElementById('resultBadge');
+  if(!all.length){
+    badge.textContent='0件選択';
+    document.getElementById('mainContent').innerHTML='<div style="padding:48px;text-align:center;color:#444">左のフィルターを選択してください</div>';
+    return;
+  }
+  const lvls=[...new Set(all.map(x=>x.level))];
+  const lvlLabel=lvls.map(l=>l==='ADHOC'?'Ad-hoc':l==='ALWAYS'?'Always-on':LNAMES[l]).join(' + ');
+  badge.textContent=`${all.length}件選択 · ${lvlLabel}`;
+  if(mode==='drill')renderDrill(all);
+  else renderCompare(all);
+}
+
+function renderDrill(all){
+  const tot=sum(all);
+  const mc=document.getElementById('mainContent');
+  const revPct=tot.pipeline>0?Math.round(tot.revenue/tot.pipeline*100):0;
+  const sqlCvr=tot.mql>0?Math.round(tot.sql/tot.mql*100):0;
+  const gpRoiColor=tot.gp_roi>=3?'#5cb85c':tot.gp_roi>=2?'#f5a050':'#e05a00';
+  const totalForBar=tot.costCampaign+tot.costAdhoc+tot.costAlways||1;
+  const pCamp=Math.round(tot.costCampaign/totalForBar*100);
+  const pAdhoc=Math.round(tot.costAdhoc/totalForBar*100);
+  const pAlways=100-pCamp-pAdhoc;
+
+  const kpi=`<div class="kpi-row">
+    <div class="kpi"><div class="kpi-lbl">REVENUE</div><div class="kpi-val">${fmtM(tot.revenue)}</div><div class="kpi-sub">売上貢献 <span class="kb kup">▲ 18%</span></div><div class="kline klg"></div></div>
+    <div class="kpi"><div class="kpi-lbl">PIPELINE</div><div class="kpi-val">${fmtM(tot.pipeline)}</div><div class="kpi-sub">Rev転換 ${revPct}%</div><div class="kline klg"></div></div>
+    <div class="kpi"><div class="kpi-lbl">MKT COST</div><div class="kpi-val">${fmtM(tot.cost)}</div><div class="kpi-sub">ROI ${fmtX(tot.roi)}</div><div class="kline klg"></div></div>
+    <div class="kpi"><div class="kpi-lbl">ROI（売上）</div><div class="kpi-val">${fmtX(tot.roi)}</div><div class="kpi-sub">Revenue÷Cost <span class="kb kdn">▼要改善</span></div><div class="kline klr"></div></div>
+    <div class="kpi gp"><div class="kpi-lbl">GP-ROI <span style="font-size:8px;color:#2d5a20">粗利ベース</span></div><div class="kpi-val" style="color:${gpRoiColor}">${fmtX(tot.gp_roi)}</div><div class="kpi-sub">粗利÷MKTコスト</div><div class="kline klgp"></div></div>
+    <div class="kpi"><div class="kpi-lbl">MQL / SQL</div><div class="kpi-val" style="color:#7ab8f5">${tot.mql} / ${tot.sql}</div><div class="kpi-sub">CVR ${sqlCvr}%</div><div class="kline klb"></div></div>
+  </div>`;
+
+  // コスト内訳バー
+  const costBar=`<div class="card cost-breakdown" style="margin-bottom:10px;padding:10px 14px">
+    <div class="card-hd" style="margin-bottom:6px">MKTコスト内訳 <span class="card-hd-sub">Campaign / Ad-hoc / Always-on</span></div>
+    <div class="cb-bar">
+      <div class="cb-seg-campaign" style="width:${pCamp}%"></div>
+      <div class="cb-seg-adhoc" style="width:${pAdhoc}%"></div>
+      <div class="cb-seg-always" style="width:${pAlways}%"></div>
+    </div>
+    <div class="cb-legend">
+      <span><span class="cb-dot" style="background:#185FA5"></span>Campaign ${fmtM(tot.costCampaign)} (${pCamp}%)</span>
+      <span><span class="cb-dot" style="background:#f5a050"></span>Ad-hoc ${fmtM(tot.costAdhoc)} (${pAdhoc}%)</span>
+      <span><span class="cb-dot" style="background:#5dcaa5"></span>Always-on ${fmtM(tot.costAlways)} (${pAlways}%)</span>
+    </div>
+    <div class="info-note">※ GP-ROIはCampaign-driven分のみ計算。Ad-hoc・Always-onは費用計上のみ。</div>
+  </div>`;
+
+  // テーブル
+  const campaignItems=all.filter(x=>x.type==='campaign');
+  const adhocItems=all.filter(x=>x.type==='adhoc');
+  const alwaysItems=all.filter(x=>x.type==='always');
+
+  const campRows=campaignItems.map(({level,item})=>{
+    const gpr=getGpRate(item,level);
+    const gp=item.revenue*gpr;
+    const gpRoi=item.cost>0?gp/item.cost:0;
+    return `<tr>
+      <td><span class="lbadge ${level==='L1'?'l1b':level==='L2'?'l2b':level==='L3'?'l3b':level==='L4'?'l4b':'l5b'}">${level}</span> ${item.name}</td>
+      <td>${fmtM(item.revenue)}</td><td>${fmtM(item.pipeline)}</td><td>${fmtM(item.cost)}</td>
+      <td><span class="roib">${fmtX(item.roi)}</span></td>
+      <td><span class="gpb">${fmtX(gpRoi)}</span></td>
+      <td>${item.mql}</td><td>${item.sql}</td><td>${fmtK(item.cpl)}</td>
+    </tr>`;
+  }).join('');
+
+  const adhocRows=adhocItems.map(({item})=>`<tr class="adhoc-row">
+    <td><span class="lbadge adhocb">AH</span> ${item.name} <span style="font-size:9px;color:#664400">${item.reason}</span></td>
+    <td>${fmtM(item.revenue)}</td><td>${fmtM(item.pipeline)}</td><td>${fmtM(item.cost)}</td>
+    <td><span class="roib">${fmtX(item.roi)}</span></td><td style="color:#555">—</td>
+    <td>${item.mql}</td><td>${item.sql}</td><td>${fmtK(item.cpl)}</td>
+  </tr>`).join('');
+
+  const alwaysRows=alwaysItems.map(({item})=>`<tr class="always-row">
+    <td><span class="lbadge alwaysb">AO</span> ${item.name}</td>
+    <td style="color:#555">—</td><td style="color:#555">—</td><td>${fmtM(item.cost)}</td>
+    <td style="color:#555">—</td><td style="color:#555">—</td>
+    <td style="color:#555">—</td><td style="color:#555">—</td><td style="color:#555">—</td>
+  </tr>`).join('');
+
+  const tbl=`<div class="card">
+    <div class="card-hd">選択項目 全指標一覧 <span class="card-hd-sub">GP-ROI = 粗利÷MKTコスト（ダミー値）</span></div>
+    <table>
+      <thead><tr><th>名称</th><th>REVENUE</th><th>PIPELINE</th><th>COST</th><th>ROI</th><th>GP-ROI</th><th>MQL</th><th>SQL</th><th>CPL</th></tr></thead>
+      <tbody>${campRows}${adhocRows}${alwaysRows}
+      <tr class="total-row"><td>合計 / 加重平均</td>
+        <td>${fmtM(tot.revenue)}</td><td>${fmtM(tot.pipeline)}</td><td>${fmtM(tot.cost)}</td>
+        <td><span class="roib">${fmtX(tot.roi)}</span></td>
+        <td><span class="gpb">${fmtX(tot.gp_roi)}</span></td>
+        <td>${tot.mql}</td><td>${tot.sql}</td><td>${fmtK(tot.cpl)}</td>
+      </tr></tbody>
+    </table>
+  </div>`;
+
+  // ファネル（Campaign-drivenのみ）
+  const campTot=sum(campaignItems)||{leads:0,mql:0,sql:0,cpl:0};
+  const lH=100,mH=campTot.leads>0?Math.round(campTot.mql/campTot.leads*100):0;
+  const sH=campTot.leads>0?Math.round(campTot.sql/campTot.leads*100):0;
+  const oH=campTot.leads>0?Math.round(campTot.sql*.38/campTot.leads*100):0;
+  const mqlCvr=campTot.leads>0?Math.round(campTot.mql/campTot.leads*100):0;
+  const sqlCvr2=campTot.mql>0?Math.round(campTot.sql/campTot.mql*100):0;
+  const opp=Math.round(campTot.sql*.38);
+  const oppCvr=campTot.sql>0?Math.round(opp/campTot.sql*100):0;
+  const maxVal=Math.max(campTot.leads,1);
+  const BAR_MAX=100;
+  const bh=(v)=>Math.max(Math.round(v/maxVal*BAR_MAX),12);
+  const funnelSteps=[
+    {val:campTot.leads, label:'LEAD', pct:'—',  color:'#185FA5'},
+    {val:campTot.mql,   label:'MQL',  pct:mqlCvr+'%', color:'#534AB7'},
+    {val:campTot.sql,   label:'SQL',  pct:sqlCvr2+'%',color:'#D85A30'},
+    {val:opp,           label:'OPP',  pct:oppCvr+'%', color:'#3B6D11'},
+  ];
+  const funnelBars=funnelSteps.map(s=>`
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center">
+      <div style="font-size:14px;font-weight:600;color:#e8e8e8;line-height:1.2;margin-bottom:4px">${s.val}</div>
+      <div style="width:100%;height:${bh(s.val)}px;background:${s.color};border-radius:2px"></div>
+      <div style="font-size:9px;color:#555;margin-top:5px">${s.label}</div>
+      <div style="font-size:9px;color:#444;margin-top:1px">${s.pct}</div>
+    </div>`).join('');
+  const funnel=`<div class="card">
+    <div class="card-hd">ファネル（Campaign-driven） <span class="card-hd-sub">Lead → MQL → SQL → Opp</span></div>
+    <div style="display:flex;align-items:flex-end;gap:8px;padding-bottom:2px">${funnelBars}</div>
+    <div class="conv-row">
+      <div class="conv-item"><div class="cv">${mqlCvr}%</div><div class="cvl">Lead→MQL CVR</div></div>
+      <div class="conv-item"><div class="cv">${sqlCvr2}%</div><div class="cvl">MQL→SQL CVR</div></div>
+      <div class="conv-item"><div class="cv org">${fmtK(campTot.cpl)}</div><div class="cvl">CPL</div></div>
+    </div>
+  </div>`;
+
+  const n=campaignItems.length||1;
+  const barThick=n<=1?40:n<=2?28:n<=4?20:n<=6?14:10;
+  const barCard=`<div class="card">
+    <div class="card-hd">Revenue · Pipeline · Cost 比較 <span class="card-hd-sub">Campaign-driven</span></div>
+    <div class="chart-legend">
+      <span class="cleg"><span class="cleg-sq" style="background:#2d6e4e"></span>Revenue</span>
+      <span class="cleg"><span class="cleg-sq" style="background:#8B3A1E"></span>Cost</span>
+      <span class="cleg"><span class="cleg-sq" style="background:rgba(53,130,220,0.35)"></span>Pipeline×0.15</span>
+    </div>
+    <div style="position:relative;width:100%;height:170px"><canvas id="barChart"></canvas></div>
+  </div>`;
+  const roiCard=`<div class="card"><div class="card-hd">GP-ROI ランキング <span class="card-hd-sub">粗利÷MKTコスト（Campaign-driven）</span></div><div style="position:relative;width:100%;height:180px"><canvas id="roiChart"></canvas></div></div>`;
+
+  mc.innerHTML=kpi+costBar+`<div class="mid-row">${tbl}${funnel}</div><div class="bot-row">${barCard}${roiCard}</div>`;
+
+  destroyCharts();
+  setTimeout(()=>{
+    if(!campaignItems.length) return;
+    const labels=campaignItems.map(({item})=>item.name.length>11?item.name.slice(0,11)+'…':item.name);
+    charts.bar=new Chart(document.getElementById('barChart'),{
+      type:'bar',
+      data:{labels,datasets:[
+        {label:'Revenue',data:campaignItems.map(x=>x.item.revenue),backgroundColor:'#2d6e4e',barThickness:barThick},
+        {label:'Cost',data:campaignItems.map(x=>x.item.cost),backgroundColor:'#8B3A1E',barThickness:barThick},
+        {label:'Pipeline×0.15',data:campaignItems.map(x=>+(x.item.pipeline*.15).toFixed(1)),backgroundColor:'rgba(53,130,220,0.3)',barThickness:barThick}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+        scales:{x:{grid:{display:false},ticks:{color:'#666',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#666',font:{size:9},callback:v=>'¥'+v+'M'}}}}
+    });
+    const sorted=[...campaignItems].sort((a,b)=>{
+      const gpA=a.item.revenue*getGpRate(a.item,a.level)/a.item.cost;
+      const gpB=b.item.revenue*getGpRate(b.item,b.level)/b.item.cost;
+      return gpB-gpA;
+    });
+    charts.roi=new Chart(document.getElementById('roiChart'),{
+      type:'bar',
+      data:{
+        labels:sorted.map(x=>x.item.name.length>13?x.item.name.slice(0,13)+'…':x.item.name),
+        datasets:[{data:sorted.map(x=>+(x.item.revenue*getGpRate(x.item,x.level)/x.item.cost).toFixed(2)),backgroundColor:'#2d6e4e',borderRadius:2,barThickness:Math.max(barThick,12)}]
+      },
+      options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+        scales:{x:{min:0,grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#666',font:{size:9},callback:v=>v+'x'}},y:{grid:{display:false},ticks:{color:'#999',font:{size:9}}}}}
+    });
+  },50);
+}
+
+function renderCompare(all){
+  const mc=document.getElementById('mainContent');
+  const campaignItems=all.filter(x=>x.type==='campaign');
+  if(!campaignItems.length){mc.innerHTML='<div style="padding:48px;text-align:center;color:#444">比較にはCampaign-driven項目を選択してください</div>';return;}
+
+  const metrics=['revenue','pipeline','cost','roi','gp_roi','mql','sql','cpl','leads'];
+  const bests={};
+  const bestFn={revenue:Math.max,pipeline:Math.max,cost:Math.min,roi:Math.max,gp_roi:Math.max,mql:Math.max,sql:Math.max,cpl:Math.min,leads:Math.max};
+  const enriched=campaignItems.map(({level,item})=>({level,item,gp_roi:item.revenue*getGpRate(item,level)/item.cost}));
+  metrics.forEach(m=>{
+    const vals=enriched.map(x=>m==='gp_roi'?x.gp_roi:x.item[m]);
+    bests[m]=bestFn[m](...vals);
+  });
+  const mLabel={revenue:'REVENUE',pipeline:'PIPELINE',cost:'COST',roi:'ROI',gp_roi:'GP-ROI',mql:'MQL',sql:'SQL',cpl:'CPL',leads:'LEADS'};
+  const mFmt={revenue:fmtM,pipeline:fmtM,cost:fmtM,roi:fmtX,gp_roi:fmtX,mql:v=>Math.round(v),sql:v=>Math.round(v),cpl:fmtK,leads:v=>Math.round(v)};
+
+  const colHds=enriched.map(({level,item})=>`<th style="text-align:right;min-width:110px">
+    <span class="lbadge ${level==='L1'?'l1b':level==='L2'?'l2b':level==='L3'?'l3b':level==='L4'?'l4b':'l5b'}">${level}</span><br>
+    <span class="cmp-col-name">${item.name.toUpperCase()}</span>
+  </th>`).join('');
+
+  const rows=metrics.map(m=>`<tr><td>${mLabel[m]}</td>${enriched.map(x=>{
+    const v=m==='gp_roi'?x.gp_roi:x.item[m];
+    const best=(v===bests[m]);
+    return `<td class="${best?'cmp-best':''}">${mFmt[m](v)}</td>`;
+  }).join('')}</tr>`).join('');
+
+  const cmpTable=`<div class="card" style="margin-bottom:10px">
+    <div class="card-hd">全指標 横断比較テーブル <span class="card-hd-sub">太字・オレンジ = 最良値 ｜ GP-ROI = 粗利ベース（ダミー値）</span></div>
+    <table class="cmp-table"><thead><tr><th>指標</th>${colHds}</tr></thead><tbody>${rows}</tbody></table>
+  </div>`;
+
+  const radar=`<div class="card"><div class="card-hd">レーダーチャート <span class="card-hd-sub">GP-ROI含む7指標を正規化して比較</span></div><div style="position:relative;width:100%;height:240px"><canvas id="radarChart"></canvas></div></div>`;
+  const scatter=`<div class="card"><div class="card-hd">GP-ROI vs CPL 散布図 <span class="card-hd-sub">右上（高GP-ROI・低CPL）が最良</span></div><div style="position:relative;width:100%;height:240px"><canvas id="scatterChart"></canvas></div></div>`;
+
+  mc.innerHTML=cmpTable+`<div class="bot-row">${radar}${scatter}</div>`;
+
+  destroyCharts();
+  setTimeout(()=>{
+    const colors=['#185FA5','#3B6D11','#D85A30','#534AB7','#B07A00','#1e7a7a','#9B3080'];
+    const norm=arr=>{const mx=Math.max(...arr),mn=Math.min(...arr);return arr.map(v=>mx===mn?.5:(v-mn)/(mx-mn));};
+    const nRev=norm(enriched.map(x=>x.item.revenue));
+    const nPip=norm(enriched.map(x=>x.item.pipeline));
+    const nCPL=norm(enriched.map(x=>1/x.item.cpl));
+    const nROI=norm(enriched.map(x=>x.item.roi));
+    const nGP=norm(enriched.map(x=>x.gp_roi));
+    const nLead=norm(enriched.map(x=>x.item.leads));
+    const nMQL=norm(enriched.map(x=>x.item.mql));
+
+    charts.radar=new Chart(document.getElementById('radarChart'),{
+      type:'radar',
+      data:{labels:['Revenue','Pipeline','CPL効率','ROI','GP-ROI','Leads','MQL'],
+        datasets:enriched.map(({item},i)=>({
+          label:item.name,
+          data:[nRev[i],nPip[i],nCPL[i],nROI[i],nGP[i],nLead[i],nMQL[i]],
+          borderColor:colors[i%colors.length],backgroundColor:colors[i%colors.length]+'18',
+          pointBackgroundColor:colors[i%colors.length],borderWidth:1.5,pointRadius:4
+        }))},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{position:'bottom',labels:{color:'#888',font:{size:10},boxWidth:10,padding:10}}},
+        scales:{r:{grid:{color:'rgba(255,255,255,0.07)'},angleLines:{color:'rgba(255,255,255,0.07)'},ticks:{display:false},pointLabels:{color:'#777',font:{size:10}}}}}
+    });
+    charts.scatter=new Chart(document.getElementById('scatterChart'),{
+      type:'scatter',
+      data:{datasets:enriched.map(({item,gp_roi},i)=>({
+        label:item.name,data:[{x:item.cpl,y:gp_roi}],
+        backgroundColor:colors[i%colors.length],pointRadius:9,pointHoverRadius:11
+      }))},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{position:'bottom',labels:{color:'#888',font:{size:10},boxWidth:10,padding:10}},
+          tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: GP-ROI ${ctx.parsed.y.toFixed(1)}x / CPL ¥${Math.round(ctx.parsed.x)}K`}}},
+        scales:{
+          x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#666',font:{size:9},callback:v=>'¥'+v+'K'},title:{display:true,text:'CPL (¥K)',color:'#555',font:{size:9}}},
+          y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#666',font:{size:9},callback:v=>v+'x'},title:{display:true,text:'GP-ROI',color:'#555',font:{size:9}}}
+        }}
+    });
+  },50);
+}
+
+function destroyCharts(){Object.values(charts).forEach(c=>{try{c.destroy()}catch(e){}});charts={};}
+render();
+</script>
+</body>
+</html>
